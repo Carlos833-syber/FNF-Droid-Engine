@@ -1,0 +1,138 @@
+name: Droid Engine
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Droid Engine APK
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Haxe
+        uses: krdlab/setup-haxe@v1
+        with:
+          haxe-version: '4.3.4'
+
+      - name: Setup Haxelib
+        run: |
+          haxelib setup ~/haxelib
+          haxelib install lime
+          haxelib install openfl
+          haxelib install flixel
+          haxelib install flixel-addons
+          haxelib install tjson
+          haxelib install flxanimate
+
+          haxelib run lime setup
+          haxelib run openfl setup
+
+      - name: Setup Android
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;21.4.7075529"
+
+      - name: Configure Android
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
+
+          haxelib run lime config ANDROID_SDK "$ANDROID_SDK_ROOT"
+          haxelib run lime config ANDROID_NDK "$ANDROID_SDK_ROOT/ndk/21.4.7075529"
+          haxelib run lime config JAVA_HOME "$JAVA_HOME"
+
+      - name: Build Android
+        continue-on-error: true
+        run: |
+          haxelib run lime build android -release
+
+      - name: Fix AndroidManifest
+        run: |
+          MANIFEST=$(find export -type f -name "AndroidManifest.xml" | head -n 1)
+
+          if [ -n "$MANIFEST" ]; then
+            sed -i 's/ if="lime &ge; 8.2.0"//g' "$MANIFEST"
+            sed -i 's/if="lime &ge; 8.2.0"//g' "$MANIFEST"
+          fi
+
+      - name: Create signing key
+        run: |
+          mkdir -p "$HOME/.android"
+
+          keytool \
+            -genkeypair \
+            -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android \
+            -alias AndroidDebugKey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Build Release APK
+        run: |
+          GRADLE=$(find export -type f -name "gradlew" | head -n 1)
+
+          if [ -z "$GRADLE" ]; then
+            echo "Gradle não encontrado."
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$GRADLE")
+
+          cd "$PROJECT_DIR"
+
+          chmod +x gradlew
+
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$HOME/.android/debug.keystore" \
+            -Pandroid.injected.signing.store.password=android \
+            -Pandroid.injected.signing.key.alias=AndroidDebugKey \
+            -Pandroid.injected.signing.key.password=android \
+            --no-daemon
+
+      - name: Prepare APK
+        run: |
+          mkdir -p apk
+
+          APK=$(find export -type f -name "*.apk" | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "APK não encontrado."
+            exit 1
+          fi
+
+          cp "$APK" "apk/Droid-Engine.apk"
+
+          echo "APK pronto:"
+          ls -lh "apk/Droid-Engine.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Droid-Engine.apk
+          path: apk/Droid-Engine.apk
+          if-no-files-found: error
