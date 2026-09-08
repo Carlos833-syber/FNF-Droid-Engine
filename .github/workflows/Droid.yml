@@ -1,8 +1,3 @@
 name: Droid Engine
 'on': push
-
-jobs:
-build:
-runs-on: ubuntu-22.04
-steps:
-- run: echo "YAML OK"
+jobs: {build: {runs-on: ubuntu-22.04, steps: [{run: 'echo YAML OK'}]}}
