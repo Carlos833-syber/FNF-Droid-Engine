@@ -1,10 +1,9 @@
 #if !macro
-// Discord API
+
 #if DISCORD_ALLOWED
 import backend.Discord;
 #end
 
-// Psych
 #if ACHIEVEMENTS_ALLOWED
 import backend.Achievements;
 #end
@@ -17,11 +16,6 @@ import mobile.flixel.input.FlxMobileInputID;
 import mobile.backend.MobileData;
 import mobile.backend.SUtil;
 
-// Android
-// As antigas classes android.* foram removidas daqui.
-// O código Android deve usar APIs do Lime/OpenFL.
-
-// System
 #if sys
 import sys.*;
 import sys.io.*;
@@ -68,4 +62,5 @@ import flixel.group.FlxSpriteGroup;
 import flixel.group.FlxGroup.FlxTypedGroup;
 
 using StringTools;
+
 #end
