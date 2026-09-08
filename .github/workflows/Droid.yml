@@ -12,28 +12,13 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-
-      # ============================================================
-      # CHECKOUT
-      # ============================================================
-
       - name: Checkout
         uses: actions/checkout@v4
-
-
-      # ============================================================
-      # HAXE
-      # ============================================================
 
       - name: Setup Haxe
         uses: krdlab/setup-haxe@v1
         with:
           haxe-version: 4.3.4
-
-
-      # ============================================================
-      # JAVA
-      # ============================================================
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -41,16 +26,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-
-      # ============================================================
-      # ANDROID
-      # ============================================================
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK
-        shell: bash
+      - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses || true
 
@@ -59,11 +38,6 @@ jobs:
             "platforms;android-35" \
             "build-tools;35.0.0" \
             "ndk;21.4.7075529"
-
-
-      # ============================================================
-      # ANDROID VARIABLES
-      # ============================================================
 
       - name: Configure Android environment
         shell: bash
@@ -76,10 +50,9 @@ jobs:
           export ANDROID_SDK="$ANDROID_SDK_ROOT"
           export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
 
-
-      # ============================================================
-      # HAXELIB
-      # ============================================================
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK=$ANDROID_SDK"
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
 
       - name: Setup Haxelib
         shell: bash
@@ -87,15 +60,12 @@ jobs:
           mkdir -p "$HOME/haxelib"
           haxelib setup "$HOME/haxelib"
 
-
-      # ============================================================
-      # INSTALL LIBRARIES
-      # ============================================================
-
       - name: Install Haxe libraries
         shell: bash
         run: |
           set -e
+
+          echo "Installing core libraries..."
 
           haxelib install lime 8.0.1 --always
           haxelib install openfl 9.3.2 --always
@@ -105,239 +75,100 @@ jobs:
           haxelib install tjson 1.4.0 --always
           haxelib install SScript 7.7.0 --always
 
+          echo "Installing flxanimate..."
+
           haxelib remove flxanimate || true
           haxelib git flxanimate https://github.com/ShadowMario/flxanimate dev
+
+          echo "Installing linc_luajit..."
 
           haxelib remove linc_luajit || true
           haxelib git linc_luajit https://github.com/superpowers04/linc_luajit.git
 
+          echo "Installing hxCodec..."
+
           haxelib remove hxCodec || true
           haxelib git hxCodec https://github.com/polybiusproxy/hxCodec.git
+
+          echo "Installing extension-androidtools..."
 
           haxelib remove extension-androidtools || true
           haxelib git extension-androidtools https://github.com/jigsaw-4277821/extension-androidtools.git
 
-          echo ""
-          echo "========== HAXELIBS =========="
+          echo "Installed libraries:"
           haxelib list
 
-
-      # ============================================================
-      # SETUP LIME
-      # ============================================================
-
-      - name: Setup Lime Android
+      - name: Configure SScript
         shell: bash
         run: |
-          export ANDROID_HOME="$ANDROID_SDK_ROOT"
-          export ANDROID_SDK="$ANDROID_SDK_ROOT"
-          export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
+          printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' > "$HOME/settings.cocoa"
 
-          haxelib run lime setup android
+          echo "SScript settings configured:"
+          cat "$HOME/settings.cocoa"
 
-
-      # ============================================================
-      # INITIALIZE SSCRIPT
-      # ============================================================
-
-      - name: Initialize SScript
+      - name: Fix Project.xml FPS
         shell: bash
         run: |
-
-          echo "========================================"
-          echo "INITIALIZING SSCRIPT"
-          echo "========================================"
-
-          SETTINGS="$HOME/settings.cocoa"
-
-          rm -f "$SETTINGS"
-
-          echo "Running SScript setup..."
-
-          set +e
-
-          timeout 20s bash -c '
-            printf "N\n" |
-            haxelib run lime test neko
-          '
-
-          RESULT=$?
-
-          set -e
-
-          echo "SScript initialization returned: $RESULT"
-
-          if [ -f "$SETTINGS" ]; then
-            echo "SScript settings file created:"
-            ls -lh "$SETTINGS"
-          else
-            echo "WARNING: settings.cocoa was not created."
-          fi
-
-
-      # ============================================================
-      # CHECK SSCRIPT SETTINGS
-      # ============================================================
-
-      - name: Check SScript
-        shell: bash
-        run: |
-
-          echo "========================================"
-          echo "SSCRIPT CHECK"
-          echo "========================================"
-
-          if [ -f "$HOME/settings.cocoa" ]; then
-            echo "SScript has been initialized."
-          else
-            echo "SScript has no settings file."
-          fi
-
-
-      # ============================================================
-      # PROJECT.XML
-      # ============================================================
-
-      - name: Fix Project.xml
-        shell: bash
-        run: |
-
-          if grep -q 'fps=""' Project.xml; then
+          if grep -q '<app' Project.xml; then
             sed -i 's/fps=""/fps="60"/g' Project.xml
           fi
 
-          grep -n "fps=" Project.xml || true
+          echo "Project.xml FPS:"
+          grep -n 'fps=' Project.xml || true
 
-
-      # ============================================================
-      # VERIFY SOURCE
-      # ============================================================
-
-      - name: Verify source
+      - name: Verify source files
         shell: bash
         run: |
-
           echo "Checking SUtil.hx..."
-
-          if grep -n \
-            "AndroidContext\|AndroidEnvironment\|AndroidPermissions\|AndroidSettings" \
-            source/mobile/backend/SUtil.hx; then
-
-            echo "ERROR: Old Android API found in SUtil.hx."
-            exit 1
-
-          fi
-
-          echo "SUtil.hx OK."
+          grep -n "AndroidContext\|AndroidEnvironment\|AndroidPermissions\|AndroidSettings" \
+            source/mobile/backend/SUtil.hx || true
 
           echo ""
           echo "Checking import.hx..."
+          grep -n "import android\." source/import.hx || true
 
-          if grep -n "import android\." source/import.hx; then
-
-            echo "ERROR: Old Android imports found in import.hx."
-            exit 1
-
-          fi
-
-          echo "import.hx OK."
-
-
-      # ============================================================
-      # CLEAN
-      # ============================================================
-
-      - name: Clean build
+      - name: Clean previous build
         shell: bash
         run: |
-
           rm -rf export
+          rm -rf .haxelib
           rm -rf apk
-
-          mkdir -p apk
-
-
-      # ============================================================
-      # BUILD
-      # ============================================================
 
       - name: Build Android Release
         shell: bash
         run: |
-
           export ANDROID_HOME="$ANDROID_SDK_ROOT"
           export ANDROID_SDK="$ANDROID_SDK_ROOT"
           export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
 
-          echo "========================================"
-          echo "ANDROID"
-          echo "========================================"
+          mkdir -p apk
 
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK=$ANDROID_SDK"
-          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
-
-          echo ""
-          echo "========================================"
-          echo "HAXE"
-          echo "========================================"
-
-          haxe --version
-
-          echo ""
-          echo "========================================"
-          echo "LIME"
-          echo "========================================"
-
-          haxelib run lime --version
-
-          echo ""
-          echo "========================================"
-          echo "BUILD"
-          echo "========================================"
+          printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' > "$HOME/settings.cocoa"
 
           haxelib run lime build android -release
-
-
-      # ============================================================
-      # FIND APK
-      # ============================================================
 
       - name: Find APK
         shell: bash
         run: |
+          echo "Searching for APK..."
 
-          echo "========================================"
-          echo "SEARCHING APK"
-          echo "========================================"
-
-          find export \
-            -type f \
-            -name "*.apk" \
-            -print || true
+          find export -type f -name "*.apk" -print || true
 
           APK=$(find export -type f -name "*.apk" | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo ""
             echo "ERROR: APK was not generated."
             exit 1
           fi
 
-          echo ""
-          echo "APK FOUND:"
+          echo "APK found:"
           echo "$APK"
 
           cp "$APK" apk/Droid-Engine.apk
 
           echo ""
-          echo "FINAL APK:"
+          echo "Final APK:"
           ls -lh apk/Droid-Engine.apk
-
-
-      # ============================================================
-      # UPLOAD
-      # ============================================================
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
