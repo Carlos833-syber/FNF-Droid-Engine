@@ -30,6 +30,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK packages
+        shell: bash
         run: |
           yes | sdkmanager --licenses || true
 
@@ -68,17 +69,30 @@ jobs:
           echo "Installing core libraries..."
 
           haxelib install lime 8.0.1 --always
+          haxelib set lime 8.0.1
+
           haxelib install openfl 9.3.2 --always
+          haxelib set openfl 9.3.2
+
           haxelib install flixel 5.5.0 --always
+          haxelib set flixel 5.5.0
+
           haxelib install flixel-addons 3.2.1 --always
+          haxelib set flixel-addons 3.2.1
+
           haxelib install flixel-ui 2.5.0 --always
+          haxelib set flixel-ui 2.5.0
+
           haxelib install tjson 1.4.0 --always
+          haxelib set tjson 1.4.0
+
           haxelib install SScript 7.7.0 --always
+          haxelib set SScript 7.7.0
 
           echo "Installing flxanimate..."
 
           haxelib remove flxanimate || true
-          haxelib git flxanimate https://github.com/ShadowMario/flxanimate dev
+          haxelib git flxanimate https://github.com/ShadowMario/flxanimate.git dev
 
           echo "Installing linc_luajit..."
 
@@ -95,6 +109,7 @@ jobs:
           haxelib remove extension-androidtools || true
           haxelib git extension-androidtools https://github.com/jigsaw-4277821/extension-androidtools.git
 
+          echo ""
           echo "Installed libraries:"
           haxelib list
 
@@ -105,6 +120,15 @@ jobs:
 
           echo "SScript settings configured:"
           cat "$HOME/settings.cocoa"
+
+      - name: Setup Lime Android
+        shell: bash
+        run: |
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export ANDROID_SDK="$ANDROID_SDK_ROOT"
+          export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
+
+          haxelib run lime setup android
 
       - name: Fix Project.xml FPS
         shell: bash
@@ -120,11 +144,13 @@ jobs:
         shell: bash
         run: |
           echo "Checking SUtil.hx..."
+
           grep -n "AndroidContext\|AndroidEnvironment\|AndroidPermissions\|AndroidSettings" \
             source/mobile/backend/SUtil.hx || true
 
           echo ""
           echo "Checking import.hx..."
+
           grep -n "import android\." source/import.hx || true
 
       - name: Clean previous build
@@ -137,6 +163,8 @@ jobs:
       - name: Build Android Release
         shell: bash
         run: |
+          set -e
+
           export ANDROID_HOME="$ANDROID_SDK_ROOT"
           export ANDROID_SDK="$ANDROID_SDK_ROOT"
           export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
@@ -145,11 +173,15 @@ jobs:
 
           printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' > "$HOME/settings.cocoa"
 
+          echo "Building Android Release..."
+
           haxelib run lime build android -release
 
       - name: Find APK
         shell: bash
         run: |
+          set -e
+
           echo "Searching for APK..."
 
           find export -type f -name "*.apk" -print || true
@@ -158,9 +190,15 @@ jobs:
 
           if [ -z "$APK" ]; then
             echo "ERROR: APK was not generated."
+
+            echo ""
+            echo "Files inside export:"
+            find export -type f 2>/dev/null || true
+
             exit 1
           fi
 
+          echo ""
           echo "APK found:"
           echo "$APK"
 
