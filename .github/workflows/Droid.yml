@@ -33,7 +33,6 @@ steps:
     shell: bash
     run: |
       yes | sdkmanager --licenses || true
-
       sdkmanager \
         "platform-tools" \
         "platforms;android-35" \
@@ -46,14 +45,6 @@ steps:
       echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
       echo "ANDROID_SDK=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
       echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
-
-      export ANDROID_HOME="$ANDROID_SDK_ROOT"
-      export ANDROID_SDK="$ANDROID_SDK_ROOT"
-      export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
-
-      echo "ANDROID_HOME=$ANDROID_HOME"
-      echo "ANDROID_SDK=$ANDROID_SDK"
-      echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
 
   - name: Setup Haxelib
     shell: bash
@@ -96,8 +87,6 @@ steps:
       haxelib remove hxCodec || true
       haxelib git hxCodec https://github.com/polybiusproxy/hxCodec.git
 
-      echo ""
-      echo "Installed libraries:"
       haxelib list
 
   - name: Configure SScript
@@ -105,16 +94,12 @@ steps:
     run: |
       printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' > "$HOME/settings.cocoa"
 
-      echo "SScript settings:"
-      cat "$HOME/settings.cocoa"
-
   - name: Setup Lime Android
     shell: bash
     run: |
       export ANDROID_HOME="$ANDROID_SDK_ROOT"
       export ANDROID_SDK="$ANDROID_SDK_ROOT"
       export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
-
       haxelib run lime setup android
 
   - name: Remove extension-androidtools
@@ -124,23 +109,21 @@ steps:
         sed -i '/extension-androidtools/d' Project.xml
       fi
 
-      echo "Checking Project.xml..."
+      echo "Checking extension-androidtools..."
 
       if grep -n "extension-androidtools" Project.xml; then
         echo "ERROR: extension-androidtools is still present."
         exit 1
       fi
 
-      echo "extension-androidtools removed."
+      echo "OK: extension-androidtools removed."
 
   - name: Fix Project.xml FPS
     shell: bash
     run: |
-      if grep -q '<app' Project.xml; then
-        sed -i 's/fps=""/fps="60"/g' Project.xml
-      fi
+      sed -i 's/fps=""/fps="60"/g' Project.xml
 
-      echo "FPS configuration:"
+      echo "FPS:"
       grep -n 'fps=' Project.xml || true
 
   - name: Verify source files
@@ -148,24 +131,20 @@ steps:
     run: |
       echo "Checking SUtil.hx..."
 
-      if [ -f source/mobile/backend/SUtil.hx ]; then
-        grep -n \
-          "AndroidContext\|AndroidEnvironment\|AndroidPermissions\|AndroidSettings" \
-          source/mobile/backend/SUtil.hx || true
-      fi
+      grep -n \
+        "AndroidContext\|AndroidEnvironment\|AndroidPermissions\|AndroidSettings" \
+        source/mobile/backend/SUtil.hx || true
 
-      echo ""
       echo "Checking import.hx..."
 
-      if [ -f source/import.hx ]; then
-        grep -n "import android\." source/import.hx || true
-      fi
+      grep -n "import android\." source/import.hx || true
 
   - name: Clean previous build
     shell: bash
     run: |
       rm -rf export
       rm -rf apk
+      mkdir -p apk
 
   - name: Setup Java 11 for Gradle
     uses: actions/setup-java@v4
@@ -182,14 +161,11 @@ steps:
       export ANDROID_SDK="$ANDROID_SDK_ROOT"
       export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
 
-      mkdir -p apk
-
       printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' > "$HOME/settings.cocoa"
 
       echo "Java version:"
       java -version
 
-      echo ""
       echo "Building Android Release..."
 
       haxelib run lime build android -release
@@ -208,21 +184,17 @@ steps:
       if [ -z "$APK" ]; then
         echo "ERROR: APK was not generated."
 
-        echo ""
         echo "Files inside export:"
         find export -type f 2>/dev/null || true
 
         exit 1
       fi
 
-      echo ""
       echo "APK found:"
       echo "$APK"
 
       cp "$APK" apk/Droid-Engine.apk
 
-      echo ""
-      echo "Final APK:"
       ls -lh apk/Droid-Engine.apk
 
   - name: Upload APK
