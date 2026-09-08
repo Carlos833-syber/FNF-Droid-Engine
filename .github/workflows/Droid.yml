@@ -40,13 +40,13 @@ jobs:
           haxelib install tjson
           haxelib install flxanimate
           haxelib install linc_luajit
+          haxelib install SScript
 
       - name: Show installed libraries
         run: |
-          echo "Bibliotecas instaladas:"
           haxelib list
 
-      - name: Setup Lime
+      - name: Setup Lime and OpenFL
         run: |
           haxelib run lime setup
           haxelib run lime setup android
@@ -89,12 +89,10 @@ jobs:
 
       - name: Show generated Android project
         run: |
-          echo "Procurando arquivos gerados..."
-
           find . -maxdepth 10 -type f \( \
-            -name "gradlew" -o \
-            -name "build.gradle" -o \
-            -name "AndroidManifest.xml" \
+            -name "gradlew" \
+            -o -name "build.gradle" \
+            -o -name "AndroidManifest.xml" \
             \) -print
 
       - name: Find Android Project
@@ -109,9 +107,6 @@ jobs:
 
           PROJECT_DIR=$(dirname "$GRADLE")
 
-          echo "Gradle:"
-          echo "$GRADLE"
-
           echo "Projeto Android:"
           echo "$PROJECT_DIR"
 
@@ -122,13 +117,10 @@ jobs:
           MANIFEST=$(find . -type f -name "AndroidManifest.xml" | head -n 1)
 
           if [ -n "$MANIFEST" ]; then
-            echo "Manifest encontrado:"
-            echo "$MANIFEST"
+            echo "Manifest encontrado: $MANIFEST"
 
             sed -i 's/ if="lime &ge; 8.2.0"//g' "$MANIFEST"
             sed -i 's/if="lime &ge; 8.2.0"//g' "$MANIFEST"
-
-            echo "Manifest corrigido."
           fi
 
       - name: Create Debug Keystore
@@ -163,7 +155,6 @@ jobs:
       - name: Find APK
         run: |
           echo "APKs encontrados:"
-
           find . -type f -name "*.apk" -print
 
       - name: Prepare APK
@@ -176,9 +167,6 @@ jobs:
             echo "ERRO: APK não encontrado."
             exit 1
           fi
-
-          echo "APK encontrado:"
-          echo "$APK"
 
           cp "$APK" apk/Droid-Engine.apk
 
