@@ -14,21 +14,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Java 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Haxe
+      - name: Setup Haxe
         uses: krdlab/setup-haxe@v1
         with:
           haxe-version: '4.3.4'
 
       - name: Setup Haxelib
         run: |
-          mkdir -p ~/haxelib
-          haxelib setup ~/haxelib
+          mkdir -p "$HOME/haxelib"
+          haxelib setup "$HOME/haxelib"
 
       - name: Install Haxelib dependencies
         run: |
@@ -54,9 +54,10 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Accept Android licenses
-        run: yes | sdkmanager --licenses || true
+        run: |
+          yes | sdkmanager --licenses || true
 
-      - name: Install Android SDK
+      - name: Install Android SDK and NDK
         run: |
           sdkmanager "platform-tools"
           sdkmanager "platforms;android-35"
@@ -65,34 +66,85 @@ jobs:
 
       - name: Configure Android environment
         run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
+
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT"
+          echo "ANDROID_SDK=$ANDROID_SDK_ROOT"
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529"
+
+      - name: Verify Android environment
+        run: |
+          echo "===== ANDROID VARIABLES ====="
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK=$ANDROID_SDK"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
+
+          echo ""
+          echo "===== SDK ====="
+          ls -la "$ANDROID_SDK"
+
+          echo ""
+          echo "===== NDK ====="
+          ls -la "$ANDROID_NDK_ROOT"
+
+          echo ""
+          echo "===== ADB ====="
+          adb version
+
+          echo ""
+          echo "===== NDK VERSION ====="
+          cat "$ANDROID_NDK_ROOT/source.properties"
+
+      - name: Fix Project.xml FPS warning
+        run: |
+          if [ -f Project.xml ]; then
+            sed -i 's/fps=""/fps="60"/g' Project.xml
+          fi
 
       - name: Build Lime Android project
         run: |
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export ANDROID_SDK="$ANDROID_SDK_ROOT"
+          export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
+
+          echo "ANDROID_SDK=$ANDROID_SDK"
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
+
           haxelib run lime build android -release
 
       - name: Find Gradle project
         id: gradle
         run: |
-          GRADLE_DIR=$(find . -type f -name gradlew -print -quit | xargs -r dirname)
+          GRADLE_DIR=$(find . -type f -name "gradlew" -print -quit | xargs -r dirname)
 
           if [ -z "$GRADLE_DIR" ]; then
-            echo "Gradle project not found"
+            echo "ERRO: projeto Gradle não encontrado!"
+            find . -maxdepth 4 -type f | head -200
             exit 1
           fi
 
-          echo "Gradle project: $GRADLE_DIR"
+          echo "Gradle encontrado em:"
+          echo "$GRADLE_DIR"
+
           echo "dir=$GRADLE_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Fix AndroidManifest
         run: |
           GRADLE_DIR="${{ steps.gradle.outputs.dir }}"
 
-          find "$GRADLE_DIR" -type f -name "AndroidManifest.xml" -exec \
-            sed -i 's/if="lime &ge; 8.2.0"//g' {} \;
+          find "$GRADLE_DIR" \
+            -type f \
+            -name "AndroidManifest.xml" \
+            -exec sed -i 's/if="lime &ge; 8.2.0"//g' {} \;
+
+          echo "AndroidManifest corrigido."
 
       - name: Create debug keystore
         run: |
@@ -122,18 +174,33 @@ jobs:
         run: |
           mkdir -p apk
 
-          APK=$(find "${{ steps.gradle.outputs.dir }}" -type f \
-            \( -name "*.apk" -o -name "*.aab" \) \
+          echo "Procurando APK..."
+
+          APK=$(find "${{ steps.gradle.outputs.dir }}" \
+            -type f \
+            -name "*.apk" \
             -print | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "APK não encontrado!"
+            echo "ERRO: nenhum APK foi encontrado!"
+
+            echo ""
+            echo "Arquivos encontrados:"
+            find "${{ steps.gradle.outputs.dir }}" \
+              -type f \
+              | grep -E '\.(apk|aab)$' || true
+
             exit 1
           fi
 
-          echo "APK encontrado: $APK"
+          echo "APK encontrado:"
+          echo "$APK"
 
-          cp "$APK" apk/Droid-Engine.apk
+          cp "$APK" "apk/Droid-Engine.apk"
+
+          echo ""
+          echo "APK final:"
+          ls -lh "apk/Droid-Engine.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
