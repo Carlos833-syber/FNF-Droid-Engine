@@ -1,15 +1,15 @@
 #if !macro
-//Discord API
+// Discord API
 #if DISCORD_ALLOWED
 import backend.Discord;
 #end
 
-//Psych
+// Psych
 #if ACHIEVEMENTS_ALLOWED
 import backend.Achievements;
 #end
 
-//Mobile Controls
+// Mobile Controls
 import mobile.objects.MobileControls;
 import mobile.flixel.FlxHitbox;
 import mobile.flixel.FlxVirtualPad;
@@ -17,16 +17,11 @@ import mobile.flixel.input.FlxMobileInputID;
 import mobile.backend.MobileData;
 import mobile.backend.SUtil;
 
-//Android
-#if android
-import android.content.Context as AndroidContext;
-import android.widget.Toast as AndroidToast;
-import android.os.Environment as AndroidEnvironment;
-import android.Permissions as AndroidPermissions;
-import android.Settings as AndroidSettings;
-import android.Tools as AndroidTools;
-#end
+// Android
+// As antigas classes android.* foram removidas daqui.
+// O código Android deve usar APIs do Lime/OpenFL.
 
+// System
 #if sys
 import sys.*;
 import sys.io.*;
@@ -56,7 +51,7 @@ import states.LoadingState;
 import flxanimate.*;
 #end
 
-//Flixel
+// Flixel
 import flixel.sound.FlxSound;
 import flixel.FlxG;
 import flixel.FlxSprite;
