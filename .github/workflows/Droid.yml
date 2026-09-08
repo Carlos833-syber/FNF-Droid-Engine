@@ -8,12 +8,17 @@ on:
 
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-22.04
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Haxe
+        uses: krdlab/setup-haxe@v1
+        with:
+          haxe-version: 4.3.4
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -21,166 +26,138 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Haxe
-        uses: krdlab/setup-haxe@v1
-        with:
-          haxe-version: '4.3.4'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;21.4.7075529"
+
+      - name: Configure Android environment
+        shell: bash
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
+
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export ANDROID_SDK="$ANDROID_SDK_ROOT"
+          export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
+
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK=$ANDROID_SDK"
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
 
       - name: Setup Haxelib
+        shell: bash
         run: |
           mkdir -p "$HOME/haxelib"
           haxelib setup "$HOME/haxelib"
 
-      - name: Install base libraries
+      - name: Install Haxe libraries
+        shell: bash
         run: |
-          haxelib install lime --always
-          haxelib install openfl --always
-          haxelib install flixel --always
-          haxelib install flixel-addons --always
-          haxelib install flixel-ui --always
-          haxelib install tjson --always
-          haxelib install flxanimate --always
-          haxelib install SScript --always
-          haxelib install linc_luajit --always
+          set -e
 
-      - name: Install extension-androidtools
-        run: |
+          echo "Installing core libraries..."
+
+          haxelib install lime 8.0.1 --always
+          haxelib install openfl 9.3.2 --always
+          haxelib install flixel 5.5.0 --always
+          haxelib install flixel-addons 3.2.1 --always
+          haxelib install flixel-ui 2.5.0 --always
+          haxelib install tjson 1.4.0 --always
+          haxelib install SScript 7.7.0 --always
+
+          echo "Installing flxanimate..."
+
+          haxelib remove flxanimate || true
+          haxelib git flxanimate https://github.com/ShadowMario/flxanimate dev
+
+          echo "Installing linc_luajit..."
+
+          haxelib remove linc_luajit || true
+          haxelib git linc_luajit https://github.com/superpowers04/linc_luajit.git
+
+          echo "Installing hxCodec..."
+
+          haxelib remove hxCodec || true
+          haxelib git hxCodec https://github.com/polybiusproxy/hxCodec.git
+
+          echo "Installing extension-androidtools..."
+
+          haxelib remove extension-androidtools || true
           haxelib git extension-androidtools https://github.com/jigsaw-4277821/extension-androidtools.git
 
-      - name: Install hxCodec
-        run: |
-          haxelib install hxCodec --always
-
-      - name: Verify Haxelib
-        run: |
-          echo "===== HAXELIBS ====="
+          echo "Installed libraries:"
           haxelib list
 
-          echo ""
-          echo "===== LUAJIT ====="
-          haxelib path linc_luajit
-
-          echo ""
-          echo "===== ANDROIDTOOLS ====="
-          haxelib path extension-androidtools
-
-      - name: Setup Lime
+      - name: Fix Project.xml FPS
+        shell: bash
         run: |
-          haxelib run lime setup
-          haxelib run lime setup android
-          haxelib run openfl setup
-
-      - name: Setup Android
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android licenses
-        run: |
-          yes | sdkmanager --licenses || true
-
-      - name: Install Android SDK
-        run: |
-          sdkmanager "platform-tools"
-          sdkmanager "platforms;android-35"
-          sdkmanager "build-tools;35.0.0"
-          sdkmanager "ndk;21.4.7075529"
-
-      - name: Configure Android environment
-        run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
-
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-
-      - name: Verify Android
-        run: |
-          echo "ANDROID_SDK=$ANDROID_SDK"
-          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
-
-          test -d "$ANDROID_SDK"
-          test -d "$ANDROID_NDK_ROOT"
-
-          adb version
-          cat "$ANDROID_NDK_ROOT/source.properties"
-
-      - name: Fix FPS warning
-        run: |
-          if [ -f Project.xml ]; then
+          if grep -q '<app' Project.xml; then
             sed -i 's/fps=""/fps="60"/g' Project.xml
           fi
 
-      - name: Build Android
+          echo "Project.xml FPS:"
+          grep -n 'fps=' Project.xml || true
+
+      - name: Verify source files
+        shell: bash
+        run: |
+          echo "Checking SUtil.hx..."
+          grep -n "AndroidContext\|AndroidEnvironment\|AndroidPermissions\|AndroidSettings" \
+            source/mobile/backend/SUtil.hx || true
+
+          echo ""
+          echo "Checking import.hx..."
+          grep -n "import android\." source/import.hx || true
+
+      - name: Clean previous build
+        shell: bash
+        run: |
+          rm -rf export
+          rm -rf .haxelib
+          rm -rf apk
+
+      - name: Build Android Release
+        shell: bash
         run: |
           export ANDROID_HOME="$ANDROID_SDK_ROOT"
           export ANDROID_SDK="$ANDROID_SDK_ROOT"
           export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
 
-          haxelib run lime build android -release
-
-      - name: Find Gradle project
-        id: gradle
-        run: |
-          GRADLE_DIR=$(find . -type f -name "gradlew" -print -quit | xargs -r dirname)
-
-          if [ -z "$GRADLE_DIR" ]; then
-            echo "Gradle project not found!"
-            exit 1
-          fi
-
-          echo "Gradle project: $GRADLE_DIR"
-          echo "dir=$GRADLE_DIR" >> "$GITHUB_OUTPUT"
-
-      - name: Fix AndroidManifest
-        run: |
-          GRADLE_DIR="${{ steps.gradle.outputs.dir }}"
-
-          find "$GRADLE_DIR" \
-            -type f \
-            -name "AndroidManifest.xml" \
-            -exec sed -i 's/if="lime &ge; 8.2.0"//g' {} \;
-
-      - name: Create debug keystore
-        run: |
-          keytool -genkeypair \
-            -alias androiddebugkey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -keystore debug.keystore \
-            -storepass android \
-            -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US" \
-            -noprompt
-
-      - name: Build APK
-        working-directory: ${{ steps.gradle.outputs.dir }}
-        run: |
-          chmod +x gradlew
-
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/debug.keystore" \
-            -Pandroid.injected.signing.store.password=android \
-            -Pandroid.injected.signing.key.alias=androiddebugkey \
-            -Pandroid.injected.signing.key.password=android
-
-      - name: Find APK
-        run: |
           mkdir -p apk
 
-          APK=$(find "${{ steps.gradle.outputs.dir }}" \
-            -type f \
-            -name "*.apk" \
-            -print | head -n 1)
+          haxelib run lime build android -release
+
+      - name: Find APK
+        shell: bash
+        run: |
+          echo "Searching for APK..."
+
+          find export -type f -name "*.apk" -print || true
+
+          APK=$(find export -type f -name "*.apk" | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "APK não encontrado!"
+            echo "ERROR: APK was not generated."
             exit 1
           fi
+
+          echo "APK found:"
+          echo "$APK"
 
           cp "$APK" apk/Droid-Engine.apk
 
+          echo ""
+          echo "Final APK:"
           ls -lh apk/Droid-Engine.apk
 
       - name: Upload APK
