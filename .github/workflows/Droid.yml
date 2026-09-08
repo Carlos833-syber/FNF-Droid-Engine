@@ -29,6 +29,7 @@ jobs:
       - name: Setup Haxelib
         run: |
           haxelib setup ~/haxelib
+
           haxelib install lime
           haxelib install openfl
           haxelib install flixel
@@ -60,23 +61,58 @@ jobs:
 
           haxelib run lime config ANDROID_SDK "$ANDROID_SDK_ROOT"
           haxelib run lime config ANDROID_NDK "$ANDROID_SDK_ROOT/ndk/21.4.7075529"
-          haxelib run lime config JAVA_HOME "$JAVA_HOME"
+
+      - name: Lime Android Setup
+        run: |
+          haxelib run lime setup android
 
       - name: Build Android
-        continue-on-error: true
         run: |
           haxelib run lime build android -release
 
-      - name: Fix AndroidManifest
+      - name: Show Build Files
         run: |
-          MANIFEST=$(find export -type f -name "AndroidManifest.xml" | head -n 1)
+          echo "Arquivos gerados pelo Lime:"
+          find . -maxdepth 8 -type f \( \
+            -name "gradlew" -o \
+            -name "build.gradle" -o \
+            -name "*.apk" \
+          \) -print
 
-          if [ -n "$MANIFEST" ]; then
-            sed -i 's/ if="lime &ge; 8.2.0"//g' "$MANIFEST"
-            sed -i 's/if="lime &ge; 8.2.0"//g' "$MANIFEST"
+      - name: Find Android Project
+        id: android_project
+        run: |
+          GRADLE=$(find . -type f -name "gradlew" | head -n 1)
+
+          if [ -z "$GRADLE" ]; then
+            echo "ERRO: Gradle wrapper não encontrado."
+            echo "Conteúdo do diretório:"
+            find . -maxdepth 4 -type d -print
+            exit 1
           fi
 
-      - name: Create signing key
+          PROJECT_DIR=$(dirname "$GRADLE")
+
+          echo "Gradle encontrado em:"
+          echo "$GRADLE"
+
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Fix AndroidManifest
+        run: |
+          MANIFEST=$(find . -type f -name "AndroidManifest.xml" | head -n 1)
+
+          if [ -n "$MANIFEST" ]; then
+            echo "Manifest encontrado:"
+            echo "$MANIFEST"
+
+            sed -i 's/ if="lime &ge; 8.2.0"//g' "$MANIFEST"
+            sed -i 's/if="lime &ge; 8.2.0"//g' "$MANIFEST"
+          else
+            echo "Nenhum AndroidManifest encontrado."
+          fi
+
+      - name: Create Debug Keystore
         run: |
           mkdir -p "$HOME/.android"
 
@@ -94,16 +130,7 @@ jobs:
 
       - name: Build Release APK
         run: |
-          GRADLE=$(find export -type f -name "gradlew" | head -n 1)
-
-          if [ -z "$GRADLE" ]; then
-            echo "Gradle não encontrado."
-            exit 1
-          fi
-
-          PROJECT_DIR=$(dirname "$GRADLE")
-
-          cd "$PROJECT_DIR"
+          cd "${{ steps.android_project.outputs.project_dir }}"
 
           chmod +x gradlew
 
@@ -114,23 +141,32 @@ jobs:
             -Pandroid.injected.signing.key.password=android \
             --no-daemon
 
-      - name: Prepare APK
+      - name: Find APK
+        run: |
+          echo "Procurando APK..."
+
+          find . -type f -name "*.apk" -print
+
+      - name: Prepare Droid Engine APK
         run: |
           mkdir -p apk
 
-          APK=$(find export -type f -name "*.apk" | head -n 1)
+          APK=$(find . -type f -name "*.apk" | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "APK não encontrado."
+            echo "ERRO: nenhum APK foi gerado."
             exit 1
           fi
 
+          echo "APK encontrado:"
+          echo "$APK"
+
           cp "$APK" "apk/Droid-Engine.apk"
 
-          echo "APK pronto:"
+          echo "APK final:"
           ls -lh "apk/Droid-Engine.apk"
 
-      - name: Upload APK
+      - name: Upload Droid Engine APK
         uses: actions/upload-artifact@v4
         with:
           name: Droid-Engine.apk
