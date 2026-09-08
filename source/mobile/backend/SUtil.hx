@@ -10,53 +10,30 @@ import sys.FileSystem;
 #end
 
 /**
- * A storage class for mobile.
+ * Mobile storage utility.
  */
 class SUtil
 {
 	#if sys
+
 	public static function getStorageDirectory(
 		type:StorageType = #if EXTERNAL EXTERNAL #elseif OBB EXTERNAL_OBB #elseif MEDIA MEDIA #else EXTERNAL_DATA #end
 	):String
 	{
-		var daPath:String = '';
-
 		#if android
-		/*
-		 * Não usamos mais android.content.Context,
-		 * android.os.Environment ou AndroidPermissions.
-		 *
-		 * O Lime já fornece um diretório de armazenamento
-		 * próprio para o aplicativo.
-		 */
-		switch (type)
-		{
-			case EXTERNAL_DATA:
-				daPath = LimeSystem.applicationStorageDirectory;
-
-			case EXTERNAL_OBB:
-				daPath = LimeSystem.applicationStorageDirectory;
-
-			case EXTERNAL:
-				daPath = LimeSystem.applicationStorageDirectory;
-
-			case MEDIA:
-				daPath = LimeSystem.applicationStorageDirectory;
-		}
+		return LimeSystem.applicationStorageDirectory;
 		#elseif ios
-		daPath = LimeSystem.documentsDirectory;
+		return LimeSystem.documentsDirectory;
 		#else
-		daPath = LimeSystem.applicationStorageDirectory;
+		return LimeSystem.applicationStorageDirectory;
 		#end
-
-		return daPath;
 	}
 
 	public static function mkDirs(directory:String):Void
 	{
 		var total:String = '';
 
-		if (directory.length > 0 && directory.substr(0, 1) == '/')
+		if (directory.substr(0, 1) == '/')
 			total = '/';
 
 		var parts:Array<String> = directory.split('/');
@@ -87,20 +64,15 @@ class SUtil
 	{
 		try
 		{
-			var saveDirectory:String = getStorageDirectory();
+			var saveDirectory:String = getStorageDirectory() + '/saves';
 
 			if (!FileSystem.exists(saveDirectory))
 				mkDirs(saveDirectory);
 
-			var savesDirectory:String = saveDirectory + '/saves';
+			var filePath:String =
+				saveDirectory + '/' + fileName + fileExtension;
 
-			if (!FileSystem.exists(savesDirectory))
-				mkDirs(savesDirectory);
-
-			File.saveContent(
-				savesDirectory + '/' + fileName + fileExtension,
-				fileData
-			);
+			File.saveContent(filePath, fileData);
 
 			showPopUp(
 				fileName + " file has been saved.",
@@ -114,42 +86,28 @@ class SUtil
 			);
 		}
 	}
+
 	#end
 
-	/**
-	 * Android permissions.
-	 *
-	 * O Android moderno não precisa desse sistema antigo
-	 * de READ/WRITE_EXTERNAL_STORAGE para o armazenamento
-	 * privado do aplicativo.
-	 */
 	#if android
+
 	public static function doPermissionsShit():Void
 	{
 		try
 		{
-			var storage:String = getStorageDirectory();
+			var directory:String = getStorageDirectory();
 
-			if (!FileSystem.exists(storage))
-				mkDirs(storage);
-
-			if (!FileSystem.exists(storage))
-			{
-				showPopUp(
-					"Não foi possível criar o diretório de armazenamento.",
-					"Erro"
-				);
-				return;
-			}
+			if (!FileSystem.exists(directory))
+				mkDirs(directory);
 		}
 		catch (e:Dynamic)
 		{
-			showPopUp(
-				"Não foi possível acessar o armazenamento do aplicativo.",
-				"Erro"
+			LimeLogger.println(
+				"Could not create application storage directory."
 			);
 		}
 	}
+
 	#end
 
 	public static function showPopUp(
