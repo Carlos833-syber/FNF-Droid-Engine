@@ -1,12 +1,8 @@
 name: Droid Engine
-
-on:
-push:
-workflow_dispatch:
+'on': push
 
 jobs:
 build:
 runs-on: ubuntu-22.04
 steps:
-- name: Test
-run: echo "Workflow YAML OK"
+- run: echo "YAML OK"
