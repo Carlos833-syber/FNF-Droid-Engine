@@ -1,3 +1,36 @@
 name: Droid Engine
-'on': push
-jobs: {build: {runs-on: ubuntu-22.04, steps: [{run: 'echo YAML OK'}]}}
+'on': [push, workflow_dispatch]
+
+jobs: {build: {runs-on: ubuntu-22.04, steps: [
+{name: 'Checkout', uses: 'actions/checkout@v4'},
+
+{name: 'Java 17 para Android SDK', uses: 'actions/setup-java@v4', with: {distribution: 'temurin', 'java-version': '17'}},
+
+{name: 'Configurar Android SDK', uses: 'android-actions/setup-android@v3'},
+
+{name: 'Instalar Android SDK e NDK', run: 'sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;21.4.7075529"'},
+
+{name: 'Configurar Haxe', uses: 'krdlab/setup-haxe@v1', with: {haxe-version: '4.3.4'}},
+
+{name: 'Instalar dependencias', run: 'haxelib setup /home/runner/haxelib\nhaxelib install lime\nhaxelib install openfl\nhaxelib install flixel\nhaxelib install flixel-addons\nhaxelib install flixel-ui\nhaxelib install tjson\nhaxelib install hxCodec\nhaxelib install flxanimate\nhaxelib install SScript\nhaxelib git linc_luajit https://github.com/superpowers04/linc_luajit.git'},
+
+{name: 'Configurar SScript', run: 'printf ''oy9:showMacroty8:loopCosti25y10:includeAllfg'' > "$HOME/settings.cocoa"'},
+
+{name: 'Configurar Android', run: 'export ANDROID_HOME="$ANDROID_SDK_ROOT"\nexport ANDROID_SDK="$ANDROID_SDK_ROOT"\nexport ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"\nhaxelib run lime setup android'},
+
+{name: 'Remover extension-androidtools antigo', run: 'sed -i ''/extension-androidtools/d'' Project.xml || true'},
+
+{name: 'Java 11 para Gradle antigo', uses: 'actions/setup-java@v4', with: {distribution: 'temurin', 'java-version': '11'}},
+
+{name: 'Compilar APK', run: 'export ANDROID_HOME="$ANDROID_SDK_ROOT"\nexport ANDROID_SDK="$ANDROID_SDK_ROOT"\nexport ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"\nhaxelib run lime build android -release'},
+
+{name: 'Localizar APK', run: 'find export -type f -name "*.apk" -print'},
+
+{name: 'Preparar APK', run: 'mkdir -p dist\nAPK=$(find export -type f -name "*.apk" | head -n 1)\nif [ -z "$APK" ]; then echo "APK não encontrado"; exit 1; fi\ncp "$APK" dist/FNF-Droid-Engine.apk'},
+
+{name: 'Criar keystore', run: 'keytool -genkeypair -v -keystore "$HOME/fnf-release.keystore" -alias fnf -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=FNF Droid Engine, OU=Android, O=FNF, L=Brazil, ST=Alagoas, C=BR"'},
+
+{name: 'Assinar APK', run: 'APK="dist/FNF-Droid-Engine.apk"\n"$ANDROID_HOME/build-tools/35.0.0/apksigner" sign --ks "$HOME/fnf-release.keystore" --ks-pass pass:android --key-pass pass:android "$APK"\n"$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$APK"'},
+
+{name: 'Upload APK', uses: 'actions/upload-artifact@v4', with: {name: 'FNF-Droid-Engine-APK', path: 'dist/FNF-Droid-Engine.apk', 'if-no-files-found': 'error'}}
+]}}
