@@ -9,9 +9,6 @@ import sys.io.File;
 import sys.FileSystem;
 #end
 
-/**
- * Mobile storage utility.
- */
 class SUtil
 {
 	#if sys
