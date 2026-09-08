@@ -1,6 +1,6 @@
 name: Droid Engine
 
-on:
+"on":
 push:
 branches:
 - main
@@ -24,7 +24,7 @@ steps:
     uses: actions/setup-java@v4
     with:
       distribution: temurin
-      java-version: '17'
+      java-version: "17"
 
   - name: Setup Android SDK
     uses: android-actions/setup-android@v3
@@ -33,11 +33,7 @@ steps:
     shell: bash
     run: |
       yes | sdkmanager --licenses || true
-      sdkmanager \
-        "platform-tools" \
-        "platforms;android-35" \
-        "build-tools;35.0.0" \
-        "ndk;21.4.7075529"
+      sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;21.4.7075529"
 
   - name: Configure Android environment
     shell: bash
@@ -105,39 +101,20 @@ steps:
   - name: Remove extension-androidtools
     shell: bash
     run: |
-      if [ -f Project.xml ]; then
-        sed -i '/extension-androidtools/d' Project.xml
-      fi
+      sed -i '/extension-androidtools/d' Project.xml
 
-      echo "Checking extension-androidtools..."
-
-      if grep -n "extension-androidtools" Project.xml; then
-        echo "ERROR: extension-androidtools is still present."
+      if grep -q "extension-androidtools" Project.xml; then
+        echo "ERROR: extension-androidtools ainda está no Project.xml"
         exit 1
       fi
 
-      echo "OK: extension-androidtools removed."
+      echo "extension-androidtools removido."
 
   - name: Fix Project.xml FPS
     shell: bash
     run: |
       sed -i 's/fps=""/fps="60"/g' Project.xml
-
-      echo "FPS:"
       grep -n 'fps=' Project.xml || true
-
-  - name: Verify source files
-    shell: bash
-    run: |
-      echo "Checking SUtil.hx..."
-
-      grep -n \
-        "AndroidContext\|AndroidEnvironment\|AndroidPermissions\|AndroidSettings" \
-        source/mobile/backend/SUtil.hx || true
-
-      echo "Checking import.hx..."
-
-      grep -n "import android\." source/import.hx || true
 
   - name: Clean previous build
     shell: bash
@@ -150,7 +127,7 @@ steps:
     uses: actions/setup-java@v4
     with:
       distribution: temurin
-      java-version: '11'
+      java-version: "11"
 
   - name: Build Android Release
     shell: bash
@@ -163,10 +140,7 @@ steps:
 
       printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' > "$HOME/settings.cocoa"
 
-      echo "Java version:"
       java -version
-
-      echo "Building Android Release..."
 
       haxelib run lime build android -release
 
@@ -175,23 +149,15 @@ steps:
     run: |
       set -e
 
-      echo "Searching for APK..."
-
-      find export -type f -name "*.apk" -print || true
-
       APK=$(find export -type f -name "*.apk" | head -n 1)
 
       if [ -z "$APK" ]; then
-        echo "ERROR: APK was not generated."
-
-        echo "Files inside export:"
+        echo "ERROR: APK não foi gerado."
         find export -type f 2>/dev/null || true
-
         exit 1
       fi
 
-      echo "APK found:"
-      echo "$APK"
+      echo "APK encontrado: $APK"
 
       cp "$APK" apk/Droid-Engine.apk
 
