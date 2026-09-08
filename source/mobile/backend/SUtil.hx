@@ -1,12 +1,9 @@
 package mobile.backend;
 
-#if android
-import lime.app.Application;
-#end
 import haxe.Exception;
-import haxe.io.Path;
 import lime.system.System as LimeSystem;
 import lime.utils.Log as LimeLogger;
+
 #if sys
 import sys.io.File;
 import sys.FileSystem;
@@ -14,29 +11,42 @@ import sys.FileSystem;
 
 /**
  * A storage class for mobile.
- * @author Mihai Alexandru (M.A. Jigsaw) and Lily (mcagabe19)
  */
 class SUtil
 {
 	#if sys
-	public static function getStorageDirectory(type:StorageType = #if EXTERNAL EXTERNAL #elseif OBB EXTERNAL_OBB #elseif MEDIA MEDIA #else EXTERNAL_DATA #end):String
+	public static function getStorageDirectory(
+		type:StorageType = #if EXTERNAL EXTERNAL #elseif OBB EXTERNAL_OBB #elseif MEDIA MEDIA #else EXTERNAL_DATA #end
+	):String
 	{
 		var daPath:String = '';
 
 		#if android
+		/*
+		 * Não usamos mais android.content.Context,
+		 * android.os.Environment ou AndroidPermissions.
+		 *
+		 * O Lime já fornece um diretório de armazenamento
+		 * próprio para o aplicativo.
+		 */
 		switch (type)
 		{
 			case EXTERNAL_DATA:
-				daPath = AndroidContext.getExternalFilesDir(null);
+				daPath = LimeSystem.applicationStorageDirectory;
+
 			case EXTERNAL_OBB:
-				daPath = AndroidContext.getObbDir();
+				daPath = LimeSystem.applicationStorageDirectory;
+
 			case EXTERNAL:
-				daPath = AndroidEnvironment.getExternalStorageDirectory() + '/.' + Application.current.meta.get('file');
+				daPath = LimeSystem.applicationStorageDirectory;
+
 			case MEDIA:
-				daPath = AndroidEnvironment.getExternalStorageDirectory() + '/Android/media/' + Application.current.meta.get('packageName');
+				daPath = LimeSystem.applicationStorageDirectory;
 		}
 		#elseif ios
 		daPath = LimeSystem.documentsDirectory;
+		#else
+		daPath = LimeSystem.applicationStorageDirectory;
 		#end
 
 		return daPath;
@@ -45,10 +55,12 @@ class SUtil
 	public static function mkDirs(directory:String):Void
 	{
 		var total:String = '';
-		if (directory.substr(0, 1) == '/')
+
+		if (directory.length > 0 && directory.substr(0, 1) == '/')
 			total = '/';
 
 		var parts:Array<String> = directory.split('/');
+
 		if (parts.length > 0 && parts[0].indexOf(':') > -1)
 			parts.shift();
 
@@ -67,49 +79,85 @@ class SUtil
 		}
 	}
 
-	public static function saveContent(fileName:String = 'file', fileExtension:String = '.json',
-			fileData:String = 'you forgot to add something in your code :3'):Void
+	public static function saveContent(
+		fileName:String = 'file',
+		fileExtension:String = '.json',
+		fileData:String = 'you forgot to add something in your code :3'
+	):Void
 	{
 		try
 		{
-			if (!FileSystem.exists('saves'))
-				FileSystem.createDirectory('saves');
+			var saveDirectory:String = getStorageDirectory();
 
-			File.saveContent('saves/' + fileName + fileExtension, fileData);
-			showPopUp(fileName + " file has been saved.", "Success!");
+			if (!FileSystem.exists(saveDirectory))
+				mkDirs(saveDirectory);
+
+			var savesDirectory:String = saveDirectory + '/saves';
+
+			if (!FileSystem.exists(savesDirectory))
+				mkDirs(savesDirectory);
+
+			File.saveContent(
+				savesDirectory + '/' + fileName + fileExtension,
+				fileData
+			);
+
+			showPopUp(
+				fileName + " file has been saved.",
+				"Success!"
+			);
 		}
 		catch (e:Exception)
-			LimeLogger.println("File couldn't be saved.\n(${e.message})");
+		{
+			LimeLogger.println(
+				"File couldn't be saved.\n(" + e.message + ")"
+			);
+		}
 	}
 	#end
 
+	/**
+	 * Android permissions.
+	 *
+	 * O Android moderno não precisa desse sistema antigo
+	 * de READ/WRITE_EXTERNAL_STORAGE para o armazenamento
+	 * privado do aplicativo.
+	 */
 	#if android
 	public static function doPermissionsShit():Void
 	{
-		if (!AndroidPermissions.getGrantedPermissions().contains(AndroidPermissions.READ_EXTERNAL_STORAGE)
-			&& !AndroidPermissions.getGrantedPermissions().contains(AndroidPermissions.WRITE_EXTERNAL_STORAGE))
+		try
 		{
-			AndroidPermissions.requestPermission(AndroidPermissions.READ_EXTERNAL_STORAGE);
-			AndroidPermissions.requestPermission(AndroidPermissions.WRITE_EXTERNAL_STORAGE);
-			openfl.Lib.application.window.alert('If you accepted the permissions you are all good!' + '\nIf you didn\'t then expect a crash' + '\nPress Ok to see what happens',
-				'Notice!');
-			if (!AndroidEnvironment.isExternalStorageManager())
-				AndroidSettings.requestSetting("android.AndroidSettings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION");
-		} else {
-                try {
-                if (!FileSystem.exists(SUtil.getStorageDirectory()))
-                    FileSystem.createDirectory(SUtil.getStorageDirectory());
-                }
-                catch(e:Dynamic) {
-			    showPopUp("Please create folder to\n" + #if EXTERNAL "/storage/emulated/0/." + lime.app.Application.current.meta.get('file') #elseif MEDIA "/storage/emulated/0/Android/media/" + lime.app.Application.current.meta.get('packageName') #else SUtil.getStorageDirectory() #end + "\nPress OK to close the game", "Error!");
-                LimeSystem.exit(1);
-                }}
+			var storage:String = getStorageDirectory();
+
+			if (!FileSystem.exists(storage))
+				mkDirs(storage);
+
+			if (!FileSystem.exists(storage))
+			{
+				showPopUp(
+					"Não foi possível criar o diretório de armazenamento.",
+					"Erro"
+				);
+				return;
+			}
+		}
+		catch (e:Dynamic)
+		{
+			showPopUp(
+				"Não foi possível acessar o armazenamento do aplicativo.",
+				"Erro"
+			);
+		}
 	}
 	#end
 
-	public static function showPopUp(message:String, title:String):Void
+	public static function showPopUp(
+		message:String,
+		title:String
+	):Void
 	{
-		#if (windows || web || android)
+		#if (windows || web || android || ios)
 		openfl.Lib.application.window.alert(message, title);
 		#else
 		LimeLogger.println('$title - $message');
@@ -124,4 +172,3 @@ enum StorageType
 	EXTERNAL_OBB;
 	MEDIA;
 }
-
