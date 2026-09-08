@@ -41,16 +41,11 @@ jobs:
           haxelib install tjson --always
           haxelib install flxanimate --always
           haxelib install SScript --always
+          haxelib install linc_luajit --always
 
       - name: Install extension-androidtools
         run: |
           haxelib git extension-androidtools https://github.com/jigsaw-4277821/extension-androidtools.git
-
-      - name: Install linc_luajit
-        run: |
-          git clone --depth 1 https://github.com/jigsaw-4277821/linc_luajit.git /tmp/linc_luajit
-          cd /tmp/linc_luajit
-          haxelib dev linc_luajit "$PWD"
 
       - name: Install hxCodec
         run: |
@@ -62,12 +57,12 @@ jobs:
           haxelib list
 
           echo ""
-          echo "===== ANDROIDTOOLS ====="
-          haxelib path extension-androidtools
-
-          echo ""
           echo "===== LUAJIT ====="
           haxelib path linc_luajit
+
+          echo ""
+          echo "===== ANDROIDTOOLS ====="
+          haxelib path extension-androidtools
 
       - name: Setup Lime
         run: |
@@ -107,10 +102,6 @@ jobs:
           test -d "$ANDROID_SDK"
           test -d "$ANDROID_NDK_ROOT"
 
-          echo ""
-          echo "SDK OK"
-          echo "NDK OK"
-
           adb version
           cat "$ANDROID_NDK_ROOT/source.properties"
 
@@ -126,9 +117,6 @@ jobs:
           export ANDROID_SDK="$ANDROID_SDK_ROOT"
           export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
 
-          echo "ANDROID_SDK=$ANDROID_SDK"
-          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
-
           haxelib run lime build android -release
 
       - name: Find Gradle project
@@ -141,9 +129,7 @@ jobs:
             exit 1
           fi
 
-          echo "Gradle project:"
-          echo "$GRADLE_DIR"
-
+          echo "Gradle project: $GRADLE_DIR"
           echo "dir=$GRADLE_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Fix AndroidManifest
@@ -192,9 +178,6 @@ jobs:
             echo "APK não encontrado!"
             exit 1
           fi
-
-          echo "APK encontrado:"
-          echo "$APK"
 
           cp "$APK" apk/Droid-Engine.apk
 
