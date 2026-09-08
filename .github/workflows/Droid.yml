@@ -140,6 +140,28 @@ jobs:
           echo "Project.xml FPS:"
           grep -n 'fps=' Project.xml || true
 
+      - name: Configure extension-androidtools
+        shell: bash
+        run: |
+          EXT_DIR=$(haxelib path extension-androidtools | head -n 1)
+
+          echo "extension-androidtools directory:"
+          echo "$EXT_DIR"
+
+          if [ -d "$EXT_DIR" ]; then
+            find "$EXT_DIR" -maxdepth 3 -type f \
+              \( -name "build.gradle" -o -name "build.gradle.kts" \) \
+              -print
+
+            if [ -f "$EXT_DIR/build.gradle" ]; then
+              echo "Checking extension build.gradle..."
+
+              if ! grep -q "compileSdkVersion" "$EXT_DIR/build.gradle"; then
+                sed -i '/android {/a\    compileSdkVersion 35' "$EXT_DIR/build.gradle"
+              fi
+            fi
+          fi
+
       - name: Verify source files
         shell: bash
         run: |
