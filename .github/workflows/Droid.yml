@@ -41,12 +41,14 @@ jobs:
           haxelib install flxanimate
           haxelib install linc_luajit
           haxelib install SScript
+          haxelib install hxCodec
 
       - name: Show installed libraries
         run: |
+          echo "Haxelibs instaladas:"
           haxelib list
 
-      - name: Setup Lime and OpenFL
+      - name: Setup Lime
         run: |
           haxelib run lime setup
           haxelib run lime setup android
@@ -83,12 +85,13 @@ jobs:
 
           echo "Project.xml encontrado."
 
-      - name: Build Android with Lime
+      - name: Build Android
         run: |
           haxelib run lime build android -release
 
-      - name: Show generated Android project
+      - name: Show generated files
         run: |
+          echo "Arquivos Android gerados:"
           find . -maxdepth 10 -type f \( \
             -name "gradlew" \
             -o -name "build.gradle" \
@@ -107,6 +110,9 @@ jobs:
 
           PROJECT_DIR=$(dirname "$GRADLE")
 
+          echo "Gradle encontrado:"
+          echo "$GRADLE"
+
           echo "Projeto Android:"
           echo "$PROJECT_DIR"
 
@@ -117,7 +123,8 @@ jobs:
           MANIFEST=$(find . -type f -name "AndroidManifest.xml" | head -n 1)
 
           if [ -n "$MANIFEST" ]; then
-            echo "Manifest encontrado: $MANIFEST"
+            echo "Manifest encontrado:"
+            echo "$MANIFEST"
 
             sed -i 's/ if="lime &ge; 8.2.0"//g' "$MANIFEST"
             sed -i 's/if="lime &ge; 8.2.0"//g' "$MANIFEST"
@@ -164,16 +171,19 @@ jobs:
           APK=$(find . -type f -name "*.apk" | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "ERRO: APK não encontrado."
+            echo "ERRO: nenhum APK foi gerado."
             exit 1
           fi
 
-          cp "$APK" apk/Droid-Engine.apk
+          cp "$APK" "apk/Droid-Engine.apk"
 
-          echo "APK final:"
-          ls -lh apk/Droid-Engine.apk
+          echo "======================================"
+          echo "DROID ENGINE APK"
+          echo "======================================"
 
-      - name: Upload Droid Engine APK
+          ls -lh "apk/Droid-Engine.apk"
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Droid-Engine.apk
