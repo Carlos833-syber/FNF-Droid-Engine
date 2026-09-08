@@ -8,45 +8,41 @@ on:
 
 jobs:
   build:
-    name: Build Droid Engine APK
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Haxe
+      - name: Install Haxe
         uses: krdlab/setup-haxe@v1
         with:
           haxe-version: '4.3.4'
 
       - name: Setup Haxelib
         run: |
+          mkdir -p ~/haxelib
           haxelib setup ~/haxelib
 
-      - name: Install Haxe libraries
+      - name: Install Haxelib dependencies
         run: |
-          haxelib install lime
-          haxelib install openfl
-          haxelib install flixel
-          haxelib install flixel-addons
-          haxelib install flixel-ui
-          haxelib install tjson
-          haxelib install flxanimate
-          haxelib install linc_luajit
-          haxelib install SScript
-          haxelib install hxCodec
-
-      - name: Show installed libraries
-        run: |
-          echo "Haxelibs instaladas:"
-          haxelib list
+          haxelib install lime --always
+          haxelib install openfl --always
+          haxelib install flixel --always
+          haxelib install flixel-addons --always
+          haxelib install flixel-ui --always
+          haxelib install tjson --always
+          haxelib install flxanimate --always
+          haxelib install linc_luajit --always
+          haxelib install SScript --always
+          haxelib install hxCodec --always
+          haxelib install extension-androidtools --always
 
       - name: Setup Lime
         run: |
@@ -57,131 +53,87 @@ jobs:
       - name: Setup Android
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses || true
+
       - name: Install Android SDK
         run: |
-          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
+          sdkmanager "ndk;21.4.7075529"
 
-          sdkmanager \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "ndk;21.4.7075529"
-
-      - name: Configure Android
+      - name: Configure Android environment
         run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/21.4.7075529" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
-          haxelib run lime config ANDROID_SDK "$ANDROID_SDK_ROOT"
-          haxelib run lime config ANDROID_NDK "$ANDROID_SDK_ROOT/ndk/21.4.7075529"
-
-      - name: Check Project.xml
-        run: |
-          if [ ! -f Project.xml ]; then
-            echo "ERRO: Project.xml não encontrado."
-            exit 1
-          fi
-
-          echo "Project.xml encontrado."
-
-      - name: Build Android
+      - name: Build Lime Android project
         run: |
           haxelib run lime build android -release
 
-      - name: Show generated files
+      - name: Find Gradle project
+        id: gradle
         run: |
-          echo "Arquivos Android gerados:"
-          find . -maxdepth 10 -type f \( \
-            -name "gradlew" \
-            -o -name "build.gradle" \
-            -o -name "AndroidManifest.xml" \
-            \) -print
+          GRADLE_DIR=$(find . -type f -name gradlew -print -quit | xargs -r dirname)
 
-      - name: Find Android Project
-        id: android_project
-        run: |
-          GRADLE=$(find . -type f -name "gradlew" | head -n 1)
-
-          if [ -z "$GRADLE" ]; then
-            echo "ERRO: Gradle wrapper não encontrado."
+          if [ -z "$GRADLE_DIR" ]; then
+            echo "Gradle project not found"
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$GRADLE")
-
-          echo "Gradle encontrado:"
-          echo "$GRADLE"
-
-          echo "Projeto Android:"
-          echo "$PROJECT_DIR"
-
-          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Gradle project: $GRADLE_DIR"
+          echo "dir=$GRADLE_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Fix AndroidManifest
         run: |
-          MANIFEST=$(find . -type f -name "AndroidManifest.xml" | head -n 1)
+          GRADLE_DIR="${{ steps.gradle.outputs.dir }}"
 
-          if [ -n "$MANIFEST" ]; then
-            echo "Manifest encontrado:"
-            echo "$MANIFEST"
+          find "$GRADLE_DIR" -type f -name "AndroidManifest.xml" -exec \
+            sed -i 's/if="lime &ge; 8.2.0"//g' {} \;
 
-            sed -i 's/ if="lime &ge; 8.2.0"//g' "$MANIFEST"
-            sed -i 's/if="lime &ge; 8.2.0"//g' "$MANIFEST"
-          fi
-
-      - name: Create Debug Keystore
+      - name: Create debug keystore
         run: |
-          mkdir -p "$HOME/.android"
-
-          keytool \
-            -genkeypair \
-            -v \
-            -keystore "$HOME/.android/debug.keystore" \
-            -storepass android \
-            -alias AndroidDebugKey \
-            -keypass android \
+          keytool -genkeypair \
+            -alias androiddebugkey \
             -keyalg RSA \
             -keysize 2048 \
             -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+            -keystore debug.keystore \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -noprompt
 
-      - name: Build Release APK
+      - name: Build APK with Gradle
+        working-directory: ${{ steps.gradle.outputs.dir }}
         run: |
-          cd "${{ steps.android_project.outputs.project_dir }}"
-
           chmod +x gradlew
 
           ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file="$HOME/.android/debug.keystore" \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/debug.keystore" \
             -Pandroid.injected.signing.store.password=android \
-            -Pandroid.injected.signing.key.alias=AndroidDebugKey \
-            -Pandroid.injected.signing.key.password=android \
-            --no-daemon
+            -Pandroid.injected.signing.key.alias=androiddebugkey \
+            -Pandroid.injected.signing.key.password=android
 
       - name: Find APK
         run: |
-          echo "APKs encontrados:"
-          find . -type f -name "*.apk" -print
-
-      - name: Prepare APK
-        run: |
           mkdir -p apk
 
-          APK=$(find . -type f -name "*.apk" | head -n 1)
+          APK=$(find "${{ steps.gradle.outputs.dir }}" -type f \
+            \( -name "*.apk" -o -name "*.aab" \) \
+            -print | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "ERRO: nenhum APK foi gerado."
+            echo "APK não encontrado!"
             exit 1
           fi
 
-          cp "$APK" "apk/Droid-Engine.apk"
+          echo "APK encontrado: $APK"
 
-          echo "======================================"
-          echo "DROID ENGINE APK"
-          echo "======================================"
-
-          ls -lh "apk/Droid-Engine.apk"
+          cp "$APK" apk/Droid-Engine.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
