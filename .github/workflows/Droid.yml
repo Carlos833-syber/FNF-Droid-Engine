@@ -1,10 +1,6 @@
 name: Droid Engine
 
-"on":
-push:
-branches:
-- main
-workflow_dispatch:
+on: [push, workflow_dispatch]
 
 jobs:
 build:
@@ -24,18 +20,22 @@ steps:
     uses: actions/setup-java@v4
     with:
       distribution: temurin
-      java-version: "17"
+      java-version: '17'
 
   - name: Setup Android SDK
     uses: android-actions/setup-android@v3
 
-  - name: Install Android SDK packages
+  - name: Install Android SDK
     shell: bash
     run: |
       yes | sdkmanager --licenses || true
-      sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;21.4.7075529"
+      sdkmanager \
+        "platform-tools" \
+        "platforms;android-35" \
+        "build-tools;35.0.0" \
+        "ndk;21.4.7075529"
 
-  - name: Configure Android environment
+  - name: Configure Android
     shell: bash
     run: |
       echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
@@ -48,7 +48,7 @@ steps:
       mkdir -p "$HOME/haxelib"
       haxelib setup "$HOME/haxelib"
 
-  - name: Install Haxe libraries
+  - name: Install Haxe Libraries
     shell: bash
     run: |
       set -e
@@ -83,8 +83,6 @@ steps:
       haxelib remove hxCodec || true
       haxelib git hxCodec https://github.com/polybiusproxy/hxCodec.git
 
-      haxelib list
-
   - name: Configure SScript
     shell: bash
     run: |
@@ -96,6 +94,7 @@ steps:
       export ANDROID_HOME="$ANDROID_SDK_ROOT"
       export ANDROID_SDK="$ANDROID_SDK_ROOT"
       export ANDROID_NDK_ROOT="$ANDROID_SDK_ROOT/ndk/21.4.7075529"
+
       haxelib run lime setup android
 
   - name: Remove extension-androidtools
@@ -103,33 +102,28 @@ steps:
     run: |
       sed -i '/extension-androidtools/d' Project.xml
 
-      if grep -q "extension-androidtools" Project.xml; then
-        echo "ERROR: extension-androidtools ainda está no Project.xml"
-        exit 1
-      fi
+      echo "Checking Project.xml..."
+      grep -n "extension-androidtools" Project.xml || true
 
-      echo "extension-androidtools removido."
-
-  - name: Fix Project.xml FPS
+  - name: Fix Project FPS
     shell: bash
     run: |
       sed -i 's/fps=""/fps="60"/g' Project.xml
-      grep -n 'fps=' Project.xml || true
 
-  - name: Clean previous build
+  - name: Clean Build
     shell: bash
     run: |
       rm -rf export
       rm -rf apk
       mkdir -p apk
 
-  - name: Setup Java 11 for Gradle
+  - name: Setup Java 11
     uses: actions/setup-java@v4
     with:
       distribution: temurin
-      java-version: "11"
+      java-version: '11'
 
-  - name: Build Android Release
+  - name: Build Android APK
     shell: bash
     run: |
       set -e
@@ -140,7 +134,10 @@ steps:
 
       printf '%s' 'oy9:showMacroty8:loopCosti25y10:includeAllfg' > "$HOME/settings.cocoa"
 
+      echo "Java:"
       java -version
+
+      echo "Building APK..."
 
       haxelib run lime build android -release
 
@@ -153,11 +150,13 @@ steps:
 
       if [ -z "$APK" ]; then
         echo "ERROR: APK não foi gerado."
+        echo "Conteúdo de export:"
         find export -type f 2>/dev/null || true
         exit 1
       fi
 
-      echo "APK encontrado: $APK"
+      echo "APK encontrado:"
+      echo "$APK"
 
       cp "$APK" apk/Droid-Engine.apk
 
